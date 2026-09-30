@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smash Wolf: Calorie Beast</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Montserrat:wght@800;900&family=Noto+Sans+JP:wght@700;900&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', 'Montserrat', sans-serif;
+            background-color: #020617;
+            color: #f8fafc;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .font-cinzel { font-family: 'Cinzel', serif; }
+        .font-montserrat { font-family: 'Montserrat', sans-serif; }
+
+        .gothic-card {
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(225, 29, 72, 0.4);
+            box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.85);
+        }
+
+        .mirror-video {
+            transform: scaleX(-1);
+        }
+
+        /* Pulse Animations for Cue Sequence */
+        @keyframes cuePulseSlow {
+            0% { transform: scale(1.6); opacity: 0.3; border-color: #38bdf8; }
+            50% { opacity: 0.9; border-color: #f59e0b; }
+            100% { transform: scale(1.0); opacity: 0; border-color: #e11d48; }
+        }
+
+        @keyframes cuePulseFast {
+            0% { transform: scale(2.0); opacity: 0.5; border-color: #f43f5e; }
+            100% { transform: scale(0.9); opacity: 0; border-color: #fbbf24; }
+        }
+
+        .ring-cue-slow {
+            animation: cuePulseSlow 0.35s ease-out forwards;
+        }
+
+        .ring-cue-fast {
+            animation: cuePulseFast 0.18s ease-out forwards;
+        }
+
+        /* Screen Flash Overlay Animations */
+        @keyframes flashHit {
+            0% { background-color: rgba(245, 158, 11, 0.55); }
+            100% { background-color: rgba(245, 158, 11, 0); }
+        }
+
+        @keyframes flashMiss {
+            0% { background-color: rgba(225, 29, 72, 0.45); }
+            100% { background-color: rgba(225, 29, 72, 0); }
+        }
+
+        .flash-hit { animation: flashHit 0.4s ease-out; }
+        .flash-miss { animation: flashMiss 0.25s ease-out; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between relative bg-slate-950 text-slate-100">
+
+    <!-- Background Game Canvas (Werewolf Boss & Court Arena) -->
+    <canvas id="gameCanvas" class="absolute inset-0 w-full h-full z-0"></canvas>
+    
+    <!-- Visual Effect Overlay Canvas (Particles, Hit Sparks, Confetti) -->
+    <canvas id="fxCanvas" class="absolute inset-0 w-full h-full z-20 pointer-events-none"></canvas>
+
+    <!-- Hidden Camera Video Feed & Frame Analyzer Canvas -->
+    <video id="cameraFeed" playsinline autoplay muted class="hidden"></video>
+    <canvas id="workCanvas" width="80" height="60" class="hidden"></canvas>
+
+    <!-- Fullscreen Flash Overlay -->
+    <div id="flashOverlay" class="fixed inset-0 pointer-events-none z-10 opacity-0"></div>
+
+    <!-- START / SETTINGS MODAL -->
+    <div id="startModal" class="fixed inset-0 bg-slate-950/95 z-50 flex flex-col items-center justify-center p-4 text-center">
+        <div class="max-w-md w-full gothic-card p-6 sm:p-8 rounded-3xl border-2 border-rose-600 shadow-[0_0_60px_rgba(225,29,72,0.5)] overflow-y-auto max-h-[95vh]">
+            <div class="inline-block px-3 py-1 rounded-full bg-rose-950 text-rose-400 font-extrabold text-xs tracking-widest uppercase mb-2 border border-rose-800">
+                <i class="fa-solid fa-paw mr-1"></i> GOTHIC FITNESS RHYTHM EX
+            </div>
+            
+            <h1 class="font-cinzel text-3xl sm:text-4xl text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-rose-500 to-red-600 font-black tracking-tight my-1">
+                SMASH WOLF
+            </h1>
+            <p class="text-xs text-amber-300 font-bold tracking-widest mb-4">月下ノラケット狼女 × 音ゲー加速スイング</p>
+
+            <!-- Rules & Mechanism Guide -->
+            <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-800 text-left mb-5 text-xs space-y-2.5">
+                <p class="text-rose-400 font-bold border-b border-slate-800 pb-1 flex items-center justify-between">
+                    <span><i class="fa-solid fa-volume-high mr-1"></i> 進行テンポ & ルール</span>
+                    <span class="text-[10px] text-amber-400 font-bold">※2秒間失敗防止ガード搭載</span>
+                </p>
+                <p><span class="text-amber-400 font-bold">1. 加速音（ピッ…ピッ…ピピピ！）:</span> スマッシュタイミングが近づくと「ピッ…ピッ…」から「ピピピピ！」へ合図音が高速化！</p>
+                <p><span class="text-cyan-300 font-bold">2. 直後に全力振り下ろし:</span> 「ピピピ！」の直後に画面の前でスマホ/腕を<span class="text-amber-300 font-bold">激しく縦振り！</span> 緩い動作やフライングはMISS判定。</p>
+                <p><span class="text-rose-400 font-bold">3. 撃破（特大打球音＋ファンファーレ）:</span> 成功で最高に爽快な「パコーーン！」（特別音1）が炸炸！<span class="text-amber-300 font-bold">成功直後2秒間は動体検知を完全OFF</span>にして失敗音を徹底ガード。カロリー達成で勝利ファンファーレ（特別音2）！</p>
+            </div>
+
+            <!-- Calorie Goal Options -->
+            <div class="mb-5 text-left">
+                <label class="block text-xs font-bold text-slate-300 mb-2">
+                    <i class="fa-solid fa-fire text-rose-500 mr-1"></i> 討伐目標消費カロリー:
+                </label>
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="setCalorieGoal(5.0)" id="calBtn5" class="cal-btn p-3 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 font-bold text-xs hover:border-rose-500 transition-all text-center">
+                        <span class="block text-amber-400 font-montserrat text-sm font-black">5.0 kcal</span>
+                        <span class="text-[9px] text-slate-400">初級 (約15〜20本)</span>
+                    </button>
+                    <button onclick="setCalorieGoal(15.0)" id="calBtn15" class="cal-btn p-3 rounded-xl bg-rose-950 border-2 border-rose-500 text-white font-bold text-xs transition-all text-center">
+                        <span class="block text-amber-300 font-montserrat text-sm font-black">15.0 kcal</span>
+                        <span class="text-[9px] text-rose-200">標準 (約40〜50本)</span>
+                    </button>
+                    <button onclick="setCalorieGoal(30.0)" id="calBtn30" class="cal-btn p-3 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 font-bold text-xs hover:border-rose-500 transition-all text-center">
+                        <span class="block text-rose-400 font-montserrat text-sm font-black">30.0 kcal</span>
+                        <span class="text-[9px] text-slate-400">鬼畜 (約90〜100本)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Motion Strictness Settings -->
+            <div class="mb-6 text-left">
+                <label class="block text-xs font-bold text-slate-300 mb-2">
+                    <i class="fa-solid fa-gauge-high text-amber-400 mr-1"></i> スイング検知の厳しさ（運動強度）:
+                </label>
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="setSensitivity('normal')" id="sensNormal" class="sens-btn p-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 text-xs font-bold">
+                        厳しめ
+                    </button>
+                    <button onclick="setSensitivity('hard')" id="sensHard" class="sens-btn p-2 rounded-xl bg-rose-950 border-2 border-rose-500 text-rose-200 text-xs font-bold">
+                        激ムズ (推奨)
+                    </button>
+                    <button onclick="setSensitivity('sparta')" id="sensSparta" class="sens-btn p-2 rounded-xl bg-slate-900 border border-slate-700 text-rose-400 text-xs font-bold">
+                        超スパルタ
+                    </button>
+                </div>
+            </div>
+
+            <!-- Action Start Buttons -->
+            <div class="space-y-2">
+                <button onclick="startWithCamera()" class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-rose-600 to-red-600 hover:brightness-110 text-slate-950 font-black text-base sm:text-lg tracking-wider shadow-[0_0_35px_rgba(225,29,72,0.6)] active:scale-95 transition-all flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-camera text-slate-950"></i> インカメラ動体検知で狩り開始
+                </button>
+                <button onclick="startWithManual()" class="w-full py-2.5 px-4 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 font-bold text-xs hover:bg-slate-800 transition-all">
+                    <i class="fa-solid fa-keyboard"></i> 手動キーボード(SPACE) / ボタンでテスト
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOP BOSS HEALTH & CALORIE HUD -->
+    <header class="relative z-30 w-full max-w-2xl mx-auto p-3 gothic-card rounded-b-3xl border-t-0 shadow-2xl">
+        <div class="flex justify-between items-baseline mb-1">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-dog text-rose-500 text-base"></i>
+                <h3 class="text-xs sm:text-sm text-rose-300 font-black tracking-widest font-cinzel">
+                    月下ノラケット狼女・ルナリア
+                </h3>
+            </div>
+            <div class="text-right">
+                <span class="text-[9px] text-slate-400 uppercase tracking-wider block">討伐残りカロリー</span>
+                <span id="txtBossHp" class="text-sm sm:text-base text-amber-400 font-montserrat font-black">15.0 / 15.0 kcal</span>
+            </div>
+        </div>
+        
+        <!-- Calorie Boss Health Bar -->
+        <div class="bg-slate-950 h-5 rounded-full w-full overflow-hidden relative p-0.5 border border-rose-900/60 shadow-inner">
+            <div id="barBossHp" class="bg-gradient-to-r from-red-600 via-rose-500 to-amber-400 h-full rounded-full transition-all duration-150" style="width: 100%;"></div>
+        </div>
+    </header>
+
+    <!-- MAIN RHYTHM & SMASH INTERACTIVE ARENA -->
+    <main class="relative z-20 flex-1 flex flex-col items-center justify-between p-3 max-w-xl mx-auto w-full">
+        <!-- Accelerating Rhythm Indicator -->
+        <div class="mt-2 flex flex-col items-center relative">
+            <div class="relative flex items-center justify-center w-24 h-24">
+                <!-- Target Pulse Ring -->
+                <div id="targetRing" class="absolute w-24 h-24 rounded-full border-4 border-amber-400 opacity-0 pointer-events-none"></div>
+                <!-- Center Core Icon -->
+                <div id="targetCore" class="w-16 h-16 rounded-full bg-slate-900 border-2 border-rose-500 flex items-center justify-center shadow-[0_0_20px_rgba(225,29,72,0.4)] transition-all">
+                    <i id="targetIcon" class="fa-solid fa-bolt text-rose-400 text-2xl"></i>
+                </div>
+            </div>
+            <span id="txtSignalNotice" class="text-xs font-black text-amber-300 mt-2 tracking-widest uppercase drop-shadow">
+                加速音（ピッ…ピッ…ピピピ！）を聴け！
+            </span>
+        </div>
+
+        <!-- Rating Popups (PERFECT / MISS / EARLY) -->
+        <div class="relative my-auto flex flex-col items-center justify-center pointer-events-none">
+            <div id="txtSmashRating" class="absolute text-4xl sm:text-6xl font-black text-amber-400 tracking-wider opacity-0 transition-all drop-shadow-[0_0_35px_rgba(0,0,0,1)] text-center w-96 font-montserrat">
+                PERFECT!
+            </div>
+        </div>
+
+        <!-- Camera Feed & Motion Threshold Monitor -->
+        <div class="w-full space-y-2">
+            <div class="gothic-card p-3 rounded-2xl border border-slate-800 font-mono text-xs flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="relative w-14 h-10 rounded-lg overflow-hidden border border-rose-500/50 bg-slate-950 flex-shrink-0">
+                        <canvas id="cameraPreview" class="w-full h-full object-cover mirror-video"></canvas>
+                    </div>
+                    <div>
+                        <div class="text-slate-200 font-bold text-xs flex items-center gap-1.5">
+                            <i id="modeIcon" class="fa-solid fa-camera text-rose-400"></i>
+                            <span id="txtEngineType">カメラ動体検知</span>
+                        </div>
+                        <div class="text-slate-400 text-[10px] mt-0.5">
+                            スイング速度: <span id="txtMotionValue" class="text-amber-400 font-bold font-montserrat">0</span> 
+                            <span class="text-slate-500">/ 閾値: <span id="txtThresholdVal">180</span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-right">
+                    <span id="txtSmashType" class="text-amber-400 font-bold text-xs block">気配を伺っている…</span>
+                    <span id="txtCombo" class="text-rose-400 text-[10px] font-bold">COMBO x0</span>
+                </div>
+            </div>
+
+            <!-- Manual Trigger Button -->
+            <button id="btnManualSmash" onclick="handleSwingAction(280)" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 border border-rose-500/40 text-rose-300 font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-2">
+                <i class="fa-solid fa-hand-pointer text-amber-400"></i> 手動スマッシュ (SPACEキー / TAP)
+            </button>
+        </div>
+    </main>
+
+    <!-- FOOTER STATS HUD -->
+    <footer class="relative z-30 w-full max-w-2xl mx-auto p-3 gothic-card rounded-t-3xl border-b-0 text-center flex justify-between items-center px-6 text-xs">
+        <div>
+            <span class="text-slate-400 text-[10px] block font-bold">消費カロリー</span>
+            <span id="txtTotalCalorie" class="font-black text-rose-400 font-montserrat text-sm sm:text-base">0.0 kcal</span>
+        </div>
+        <div>
+            <span class="text-slate-400 text-[10px] block font-bold">SMASH成功数</span>
+            <span id="txtPerfectCount" class="font-black text-amber-400 font-montserrat text-sm sm:text-base">0 回</span>
+        </div>
+        <div>
+            <span class="text-slate-400 text-[10px] block font-bold">MISS数</span>
+            <span id="txtMissCount" class="font-black text-red-500 font-montserrat text-sm sm:text-base">0 回</span>
+        </div>
+    </footer>
+
+    <!-- GOAL / VICTORY RESULT MODAL -->
+    <div id="resultModal" class="fixed inset-0 bg-slate-950/95 z-50 hidden flex-col items-center justify-center p-6 text-center">
+        <div class="max-w-md w-full gothic-card p-6 sm:p-8 rounded-3xl border-2 border-amber-400 shadow-[0_0_70px_rgba(245,158,11,0.6)]">
+            <div class="inline-block px-3 py-1 rounded-full bg-amber-950 text-amber-400 font-bold text-xs tracking-widest uppercase mb-2 border border-amber-600">
+                <i class="fa-solid fa-trophy mr-1"></i> GOAL CLEARED!
+            </div>
+            <h1 class="font-cinzel text-3xl sm:text-4xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-rose-400 to-amber-500 mb-1">
+                WOLF VANQUISHED!
+            </h1>
+            <p class="text-slate-300 text-xs sm:text-sm mb-6">目標消費カロリーを完全クリア！狼女ルナリアを撃破！</p>
+
+            <div class="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl text-left space-y-2.5 mb-6 font-mono text-xs sm:text-sm">
+                <h4 class="text-amber-400 font-bold border-b border-slate-800 pb-1.5 text-center font-montserrat text-xs">WORKOUT SUMMARY</h4>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">総消費カロリー:</span>
+                    <span id="resCalories" class="font-black text-rose-400 font-montserrat text-base">0.0 kcal</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">SMASH成功数:</span>
+                    <span id="resPerfectCount" class="font-black text-amber-400 font-montserrat">0 回</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">MISS数:</span>
+                    <span id="resMissCount" class="font-black text-red-500 font-montserrat">0 回</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">運動達成タイム:</span>
+                    <span id="resTime" class="font-black text-rose-300 font-montserrat">00:00</span>
+                </div>
+            </div>
+
+            <button onclick="restartGame()" class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-rose-600 to-red-600 hover:brightness-110 text-slate-950 font-black text-base tracking-wider active:scale-95 transition-all shadow-lg">
+                <i class="fa-solid fa-rotate-right mr-2"></i> 再び狩りに出る
+            </button>
+        </div>
+    </div>
+
+    <script>
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            // Cue Beep 1: Slow Approach ("ピッ...")
+            playCueSlow() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, now); // A5
+                gain.gain.setValueAtTime(0.35, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            }
+
+            // Cue Beep 2: Fast Accelerating Burst ("ピピピピ！")
+            playCueFast() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(1480, now); // F#6
+                gain.gain.setValueAtTime(0.45, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.05);
+            }
+
+            // Cue Smash Moment Trigger Sound ("PII!")
+            playCueSmashNow() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(1760, now); // A6
+                osc.frequency.exponentialRampToValueAtTime(2200, now + 0.08);
+
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            }
+
+            // SPECIAL SOUND 1: Heavy Badminton "PAKOON!" Impact + Crystal Chime
+            playSmashSpecialSound1() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+
+                // 1. Racket String Tension Pop ("パコーーン！")
+                const osc1 = this.ctx.createOscillator();
+                const gain1 = this.ctx.createGain();
+                osc1.type = 'triangle';
+                osc1.frequency.setValueAtTime(1600, now);
+                osc1.frequency.exponentialRampToValueAtTime(180, now + 0.22);
+
+                gain1.gain.setValueAtTime(1.0, now);
+                gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+                osc1.connect(gain1);
+                gain1.connect(this.ctx.destination);
+                osc1.start(now);
+                osc1.stop(now + 0.22);
+
+                // 2. High-speed Shuttle Impact Noise
+                const bufferSize = this.ctx.sampleRate * 0.15;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(3200, now);
+                filter.frequency.exponentialRampToValueAtTime(400, now + 0.15);
+
+                const gain2 = this.ctx.createGain();
+                gain2.gain.setValueAtTime(0.85, now);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+                noise.connect(filter);
+                filter.connect(gain2);
+                gain2.connect(this.ctx.destination);
+                noise.start(now);
+
+                // 3. Crystal Sparkle Chime Echo
+                const chimeFreqs = [2093.00, 2637.02, 3135.96]; // C7, E7, G7
+                chimeFreqs.forEach((freq, idx) => {
+                    const oscC = this.ctx.createOscillator();
+                    const gainC = this.ctx.createGain();
+                    oscC.type = 'sine';
+                    oscC.frequency.setValueAtTime(freq, now + (idx * 0.03));
+                    gainC.gain.setValueAtTime(0.35, now + (idx * 0.03));
+                    gainC.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+                    oscC.connect(gainC);
+                    gainC.connect(this.ctx.destination);
+                    oscC.start(now + (idx * 0.03));
+                    oscC.stop(now + 0.35);
+                });
+            }
+
+            // MISS Sound (Sawtooth Drop)
+            playMissSound() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, now);
+                osc.frequency.exponentialRampToValueAtTime(90, now + 0.22);
+
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.22);
+            }
+
+            // SPECIAL SOUND 2: Goal Cleared Triumphant Victory Fanfare
+            playGoalVictoryFanfare2() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+
+                const fanfareNotes = [
+                    { f: 523.25, t: 0.0, d: 0.12 }, // C5
+                    { f: 659.25, t: 0.12, d: 0.12 }, // E5
+                    { f: 783.99, t: 0.24, d: 0.12 }, // G5
+                    { f: 1046.50, t: 0.36, d: 0.20 }, // C6
+                    { f: 880.00, t: 0.58, d: 0.14 },  // A5
+                    { f: 1046.50, t: 0.74, d: 0.65 }  // C6
+                ];
+
+                fanfareNotes.forEach(note => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(note.f, now + note.t);
+
+                    gain.gain.setValueAtTime(0.65, now + note.t);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + note.t + note.d);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now + note.t);
+                    osc.stop(now + note.t + note.d);
+                });
+            }
+        }
+
+        const sound = new SoundEngine();
+
+        let state = {
+            isPlaying: false,
+            activeMode: 'camera',
+            
+            // Adjusted target calories
+            targetCalorie: 15.0,
+            consumedCalorie: 0.0,
+            
+            // Motion Sensitivity Threshold
+            swingThreshold: 180,
+            
+            perfectCount: 0,
+            missCount: 0,
+            combo: 0,
+
+            // Rhythm Accelerating Cue Sequence State
+            cueActive: false,
+            smashWindowOpen: false,
+            smashStartTime: 0,
+            
+            // [MAJOR UPDATE] 2.0s (2000ms) Motion Detection & Miss Freeze Guard Flag & Timestamp
+            isMotionDetectionDisabled: false,
+            motionDetectionDisabledUntil: 0,
+
+            // Boss Visual State
+            bossState: 'idle', // 'idle', 'windup', 'damaged', 'taunt'
+            bossStateTimer: 0,
+            
+            startTime: 0,
+            lastSwingTime: 0
+        };
+
+        const els = {
+            barBossHp: document.getElementById('barBossHp'),
+            txtBossHp: document.getElementById('txtBossHp'),
+            
+            targetRing: document.getElementById('targetRing'),
+            targetCore: document.getElementById('targetCore'),
+            targetIcon: document.getElementById('targetIcon'),
+            txtSignalNotice: document.getElementById('txtSignalNotice'),
+            
+            txtSmashRating: document.getElementById('txtSmashRating'),
+            txtMotionValue: document.getElementById('txtMotionValue'),
+            txtThresholdVal: document.getElementById('txtThresholdVal'),
+            txtSmashType: document.getElementById('txtSmashType'),
+            txtCombo: document.getElementById('txtCombo'),
+            txtEngineType: document.getElementById('txtEngineType'),
+            modeIcon: document.getElementById('modeIcon'),
+
+            txtTotalCalorie: document.getElementById('txtTotalCalorie'),
+            txtPerfectCount: document.getElementById('txtPerfectCount'),
+            txtMissCount: document.getElementById('txtMissCount'),
+
+            startModal: document.getElementById('startModal'),
+            resultModal: document.getElementById('resultModal'),
+            flashOverlay: document.getElementById('flashOverlay')
+        };
+
+        function setCalorieGoal(kcal) {
+            state.targetCalorie = kcal;
+
+            document.querySelectorAll('.cal-btn').forEach(b => {
+                b.classList.remove('border-2', 'border-rose-500', 'bg-rose-950');
+                b.classList.add('border', 'border-slate-700', 'bg-slate-900');
+            });
+
+            const btnKey = Math.round(kcal);
+            const activeBtn = document.getElementById(`calBtn${btnKey}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('border', 'border-slate-700', 'bg-slate-900');
+                activeBtn.classList.add('border-2', 'border-rose-500', 'bg-rose-950');
+            }
+        }
+
+        function setSensitivity(level) {
+            document.querySelectorAll('.sens-btn').forEach(b => {
+                b.classList.remove('border-2', 'border-rose-500', 'bg-rose-950');
+                b.classList.add('border', 'border-slate-700', 'bg-slate-900');
+            });
+
+            if (level === 'normal') {
+                state.swingThreshold = 140;
+                document.getElementById('sensNormal').classList.add('border-2', 'border-rose-500', 'bg-rose-950');
+            } else if (level === 'hard') {
+                state.swingThreshold = 180;
+                document.getElementById('sensHard').classList.add('border-2', 'border-rose-500', 'bg-rose-950');
+            } else if (level === 'sparta') {
+                state.swingThreshold = 240;
+                document.getElementById('sensSparta').classList.add('border-2', 'border-rose-500', 'bg-rose-950');
+            }
+            els.txtThresholdVal.textContent = state.swingThreshold;
+        }
+
+        let videoEl = document.getElementById('cameraFeed');
+        let workCanvas = document.getElementById('workCanvas');
+        let workCtx = workCanvas.getContext('2d');
+        let prevFrameData = null;
+        let previewCanvas = document.getElementById('cameraPreview');
+        let previewCtx = previewCanvas.getContext('2d');
+
+        async function initCameraMotionEngine() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: { ideal: 160 }, height: { ideal: 120 } }
+                });
+                videoEl.srcObject = stream;
+                await videoEl.play();
+
+                previewCanvas.width = 80;
+                previewCanvas.height = 60;
+                requestAnimationFrame(processCameraFrame);
+                return true;
+            } catch (err) {
+                console.warn("Camera fallback triggered:", err);
+                return false;
+            }
+        }
+
+        function processCameraFrame() {
+            if (!videoEl.videoWidth) {
+                if (state.isPlaying) requestAnimationFrame(processCameraFrame);
+                return;
+            }
+
+            previewCtx.drawImage(videoEl, 0, 0, previewCanvas.width, previewCanvas.height);
+
+            const now = Date.now();
+
+            // [CRITICAL UPDATED FIX] Check if 2.0s (2000ms) Motion Detection & Miss Guard is active
+            if (state.isMotionDetectionDisabled) {
+                if (now < state.motionDetectionDisabledUntil) {
+                    // Motion detection and miss sounds are completely OFF for 2.0 seconds after smash success
+                    const remainMs = Math.ceil((state.motionDetectionDisabledUntil - now) / 100) / 10;
+                    els.txtMotionValue.textContent = `ガード中(${remainMs.toFixed(1)}s)`;
+                    if (state.isPlaying) requestAnimationFrame(processCameraFrame);
+                    return;
+                } else {
+                    // Re-enable Motion Detection after 2.0s expired
+                    state.isMotionDetectionDisabled = false;
+                }
+            }
+
+            const w = workCanvas.width;
+            const h = workCanvas.height;
+            workCtx.drawImage(videoEl, 0, 0, w, h);
+
+            const frame = workCtx.getImageData(0, 0, w, h);
+            const data = frame.data;
+
+            if (prevFrameData) {
+                let downwardSwingSum = 0;
+
+                // Frame-Difference Algorithm for Vertical Down-Smash Detection
+                for (let y = 10; y < h - 10; y += 2) {
+                    for (let x = 10; x < w - 10; x += 2) {
+                        const i = (y * w + x) * 4;
+                        const pixelDiff = Math.abs(data[i] - prevFrameData[i]) +
+                                          Math.abs(data[i+1] - prevFrameData[i+1]) +
+                                          Math.abs(data[i+2] - prevFrameData[i+2]);
+
+                        // Strict Noise Filtering Threshold
+                        if (pixelDiff > 70) {
+                            if (y > h / 2.6) {
+                                downwardSwingSum += pixelDiff;
+                            }
+                        }
+                    }
+                }
+
+                const swingScore = Math.floor(downwardSwingSum / 115);
+                els.txtMotionValue.textContent = swingScore;
+
+                if (state.isPlaying) {
+                    if (swingScore >= state.swingThreshold && (now - state.lastSwingTime >= 320)) {
+                        state.lastSwingTime = now;
+                        handleSwingAction(swingScore);
+                    }
+                }
+            }
+
+            prevFrameData = data;
+            if (state.isPlaying) requestAnimationFrame(processCameraFrame);
+        }
+
+        function scheduleAcceleratingCueSequence(delayOverride = null) {
+            if (!state.isPlaying) return;
+
+            state.cueActive = false;
+            state.smashWindowOpen = false;
+
+            const randomWait = delayOverride !== null ? delayOverride : (Math.floor(Math.random() * 2000) + 1000); // 1.0s to 3.0s
+
+            setTimeout(() => {
+                if (!state.isPlaying) return;
+
+                // Extra safety check: do not start cue sequence if motion detection is still frozen
+                if (state.isMotionDetectionDisabled || Date.now() < state.motionDetectionDisabledUntil) {
+                    scheduleAcceleratingCueSequence(500);
+                    return;
+                }
+
+                state.cueActive = true;
+                setBossState('windup', 1800);
+
+                // Step 1: "Pic..." (Slow 1)
+                sound.playCueSlow();
+                triggerCueRing('slow');
+                els.txtSignalNotice.textContent = "ピッ… (構え)";
+
+                // Step 2: "Pic..." (Slow 2)
+                setTimeout(() => {
+                    if (!state.isPlaying || !state.cueActive) return;
+                    sound.playCueSlow();
+                    triggerCueRing('slow');
+                    els.txtSignalNotice.textContent = "ピッ… (狙いを定めている)";
+                }, 400);
+
+                // Step 3: "Pi!" (Fast 1)
+                setTimeout(() => {
+                    if (!state.isPlaying || !state.cueActive) return;
+                    sound.playCueFast();
+                    triggerCueRing('fast');
+                    els.txtSignalNotice.textContent = "ピ！";
+                }, 750);
+
+                // Step 4: "Pi!" (Fast 2)
+                setTimeout(() => {
+                    if (!state.isPlaying || !state.cueActive) return;
+                    sound.playCueFast();
+                    triggerCueRing('fast');
+                    els.txtSignalNotice.textContent = "ピピ！";
+                }, 900);
+
+                // Step 5: "Pi!" (Fast 3)
+                setTimeout(() => {
+                    if (!state.isPlaying || !state.cueActive) return;
+                    sound.playCueFast();
+                    triggerCueRing('fast');
+                    els.txtSignalNotice.textContent = "ピピピ！";
+                }, 1020);
+
+                // Step 6: "PII! (SMASH WINDOW OPEN)"
+                setTimeout(() => {
+                    if (!state.isPlaying || !state.cueActive) return;
+                    sound.playCueSmashNow();
+                    triggerCueRing('fast');
+
+                    state.smashWindowOpen = true;
+                    state.smashStartTime = Date.now();
+
+                    els.targetCore.className = "w-16 h-16 rounded-full bg-amber-500 border-2 border-amber-200 flex items-center justify-center shadow-[0_0_35px_rgba(245,158,11,1.0)] scale-125 transition-all";
+                    els.txtSignalNotice.textContent = "今だ！！全力で振り下ろせ！！";
+                    els.txtSignalNotice.className = "text-xs font-black text-amber-300 mt-2 tracking-widest uppercase animate-bounce";
+
+                    // Window Close Timeout (320ms)
+                    setTimeout(() => {
+                        if (state.smashWindowOpen) {
+                            triggerMiss("LATE MISS");
+                        }
+                    }, 320);
+
+                }, 1140);
+
+            }, randomWait);
+        }
+
+        function triggerCueRing(type) {
+            els.targetRing.className = "absolute w-24 h-24 rounded-full border-4 opacity-0 pointer-events-none";
+            void els.targetRing.offsetWidth;
+            els.targetRing.className = `absolute w-24 h-24 rounded-full border-4 opacity-0 pointer-events-none ${type === 'slow' ? 'ring-cue-slow' : 'ring-cue-fast'}`;
+        }
+
+        function handleSwingAction(intensity) {
+            // Check if Motion Detection / Miss Guard is currently active (2.0s after smash success)
+            if (state.isMotionDetectionDisabled || Date.now() < state.motionDetectionDisabledUntil) return;
+
+            if (!state.cueActive) {
+                // Swung during idle wait -> Early Miss
+                triggerMiss("EARLY MISS");
+                return;
+            }
+
+            if (!state.smashWindowOpen) {
+                // Swung during countdown before smash window -> Flying Miss
+                triggerMiss("TOO EARLY");
+                return;
+            }
+
+            // SUCCESSFUL PERFECT SMASH!
+            triggerPerfect(intensity);
+        }
+
+        function triggerPerfect(intensity) {
+            state.cueActive = false;
+            state.smashWindowOpen = false;
+            state.perfectCount++;
+            state.combo++;
+
+            // [MAJOR UPDATE] Turn OFF Motion Detection & Miss Sound for EXACTLY 2.0s (2000ms)
+            state.isMotionDetectionDisabled = true;
+            state.motionDetectionDisabledUntil = Date.now() + 2000;
+
+            setBossState('damaged', 1800);
+
+            // PLAY SPECIAL SOUND 1: Heavy "PAKOON!" Badminton Hit + Chime
+            sound.playSmashSpecialSound1();
+
+            // Calorie Calculation
+            const calBurn = 0.28 + (intensity * 0.0009);
+            state.consumedCalorie = Math.min(state.targetCalorie, state.consumedCalorie + calBurn);
+
+            showRating("PERFECT!!", "text-amber-400 text-4xl sm:text-6xl font-black");
+            els.txtSmashType.textContent = "PAKOON!! スマッシュ成功! (2秒無敵)";
+            els.txtSmashType.className = "text-amber-400 font-black text-xs block animate-pulse";
+
+            els.flashOverlay.className = "fixed inset-0 pointer-events-none z-10 flash-hit";
+            setTimeout(() => els.flashOverlay.className = "fixed inset-0 pointer-events-none z-10 opacity-0", 400);
+
+            resetTargetUI();
+            updateUI();
+            spawnHitParticles(true);
+
+            if (state.consumedCalorie >= state.targetCalorie) {
+                endGameGoalReached();
+            } else {
+                // Schedule next rhythm cue after the 2-second cooldown period completes
+                scheduleAcceleratingCueSequence(2000);
+            }
+        }
+
+        function triggerMiss(reason) {
+            // Guard: Ignore miss triggers if 2-second motion freeze guard is currently active
+            if (state.isMotionDetectionDisabled || Date.now() < state.motionDetectionDisabledUntil) {
+                return;
+            }
+
+            state.cueActive = false;
+            state.smashWindowOpen = false;
+            state.missCount++;
+            state.combo = 0;
+
+            setBossState('taunt', 800);
+
+            // Play Miss Sound
+            sound.playMissSound();
+
+            showRating(reason, "text-red-500 text-3xl sm:text-5xl font-black");
+            els.txtSmashType.textContent = reason;
+            els.txtSmashType.className = "text-red-500 font-bold text-xs block";
+
+            els.flashOverlay.className = "fixed inset-0 pointer-events-none z-10 flash-miss";
+            setTimeout(() => els.flashOverlay.className = "fixed inset-0 pointer-events-none z-10 opacity-0", 250);
+
+            resetTargetUI();
+            updateUI();
+            spawnHitParticles(false);
+
+            if (state.isPlaying) {
+                scheduleAcceleratingCueSequence();
+            }
+        }
+
+        function resetTargetUI() {
+            els.targetCore.className = "w-16 h-16 rounded-full bg-slate-900 border-2 border-rose-500 flex items-center justify-center shadow-[0_0_20px_rgba(225,29,72,0.4)] transition-all";
+            els.txtSignalNotice.textContent = "次の加速音を待機中… (クールダウン)";
+            els.txtSignalNotice.className = "text-xs font-bold text-slate-400 mt-2 tracking-widest uppercase";
+        }
+
+        function setBossState(bState, duration) {
+            state.bossState = bState;
+            state.bossStateTimer = Date.now() + duration;
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && state.isPlaying) {
+                e.preventDefault();
+                const now = Date.now();
+                if (now - state.lastSwingTime >= 280) {
+                    state.lastSwingTime = now;
+                    handleSwingAction(230);
+                }
+            }
+        });
+
+        const gameCanvas = document.getElementById('gameCanvas');
+        const gameCtx = gameCanvas.getContext('2d');
+        const fxCanvas = document.getElementById('fxCanvas');
+        const fxCtx = fxCanvas.getContext('2d');
+
+        let particles = [];
+        let confetti = [];
+
+        function resizeCanvases() {
+            gameCanvas.width = window.innerWidth;
+            gameCanvas.height = window.innerHeight;
+            fxCanvas.width = window.innerWidth;
+            fxCanvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvases);
+        resizeCanvases();
+
+        // Canvas Drawing: Werewolf Woman with Badminton Racket ("Lunaria")
+        function drawWerewolfBoss(timestamp) {
+            const cx = gameCanvas.width / 2;
+            const cy = gameCanvas.height / 2 - 20;
+
+            const now = Date.now();
+            if (state.bossStateTimer > 0 && now > state.bossStateTimer) {
+                state.bossState = 'idle';
+                state.bossStateTimer = 0;
+            }
+
+            const breathAnim = Math.sin(timestamp * 0.004) * 8;
+            let bossOffsetX = 0;
+            let bossOffsetY = breathAnim;
+
+            if (state.bossState === 'damaged') {
+                bossOffsetX = (Math.random() - 0.5) * 20;
+                bossOffsetY += (Math.random() - 0.5) * 15;
+            } else if (state.bossState === 'windup') {
+                bossOffsetY -= 12;
+            }
+
+            gameCtx.save();
+            gameCtx.translate(cx + bossOffsetX, cy + bossOffsetY);
+
+            // Court Line Background Vector
+            gameCtx.strokeStyle = 'rgba(225, 29, 72, 0.15)';
+            gameCtx.lineWidth = 2;
+            gameCtx.strokeRect(-180, -140, 360, 280);
+
+            // 1. Wild Silver/Dark Hair (Back)
+            gameCtx.fillStyle = '#1e293b';
+            gameCtx.beginPath();
+            gameCtx.arc(0, -50, 70, Math.PI, 0);
+            gameCtx.lineTo(65, 30);
+            gameCtx.lineTo(-65, 30);
+            gameCtx.fill();
+
+            // 2. Werewolf Ears
+            gameCtx.fillStyle = '#334155';
+            gameCtx.strokeStyle = '#f43f5e';
+            gameCtx.lineWidth = 2;
+
+            // Left Ear
+            gameCtx.beginPath();
+            gameCtx.moveTo(-35, -70);
+            gameCtx.lineTo(-65, -120);
+            gameCtx.lineTo(-15, -85);
+            gameCtx.closePath();
+            gameCtx.fill();
+            gameCtx.stroke();
+
+            // Right Ear
+            gameCtx.beginPath();
+            gameCtx.moveTo(35, -70);
+            gameCtx.lineTo(65, -120);
+            gameCtx.lineTo(15, -85);
+            gameCtx.closePath();
+            gameCtx.fill();
+            gameCtx.stroke();
+
+            // 3. Face & Snout Contour
+            gameCtx.fillStyle = '#475569';
+            gameCtx.beginPath();
+            gameCtx.ellipse(0, -35, 42, 48, 0, 0, Math.PI * 2);
+            gameCtx.fill();
+
+            // Wolf Snout & Jaw
+            gameCtx.fillStyle = '#64748b';
+            gameCtx.beginPath();
+            gameCtx.ellipse(0, -20, 20, 22, 0, 0, Math.PI * 2);
+            gameCtx.fill();
+
+            // Wolf Nose
+            gameCtx.fillStyle = '#0f172a';
+            gameCtx.beginPath();
+            gameCtx.arc(0, -28, 6, 0, Math.PI * 2);
+            gameCtx.fill();
+
+            // 4. Glowing Wolf Eyes
+            const isRedEyes = state.bossState === 'windup' || state.bossState === 'damaged';
+            gameCtx.fillStyle = isRedEyes ? '#ef4444' : '#38bdf8';
+            gameCtx.shadowColor = isRedEyes ? '#ef4444' : '#38bdf8';
+            gameCtx.shadowBlur = 15;
+
+            gameCtx.beginPath();
+            gameCtx.arc(-16, -42, 6, 0, Math.PI * 2);
+            gameCtx.arc(16, -42, 6, 0, Math.PI * 2);
+            gameCtx.fill();
+            gameCtx.shadowBlur = 0;
+
+            // Fangs (Taunt / Damaged)
+            if (state.bossState === 'taunt' || state.bossState === 'damaged') {
+                gameCtx.fillStyle = '#f8fafc';
+                gameCtx.beginPath();
+                gameCtx.moveTo(-10, -12); gameCtx.lineTo(-7, -4); gameCtx.lineTo(-4, -12);
+                gameCtx.moveTo(4, -12); gameCtx.lineTo(7, -4); gameCtx.lineTo(10, -12);
+                gameCtx.fill();
+            }
+
+            // 5. Body Armor / Gothic Athletic Top
+            gameCtx.fillStyle = '#0f172a';
+            gameCtx.beginPath();
+            gameCtx.moveTo(-38, 10);
+            gameCtx.lineTo(38, 10);
+            gameCtx.lineTo(28, 80);
+            gameCtx.lineTo(-28, 80);
+            gameCtx.closePath();
+            gameCtx.fill();
+
+            // Crimson Armor Trim
+            gameCtx.strokeStyle = '#e11d48';
+            gameCtx.lineWidth = 3;
+            gameCtx.stroke();
+
+            // 6. Right Hand & Badminton Racket
+            gameCtx.save();
+            gameCtx.translate(45, 10);
+
+            // Racket Swing Pose Rotation
+            if (state.bossState === 'windup') {
+                gameCtx.rotate(-0.8);
+            } else if (state.bossState === 'damaged') {
+                gameCtx.rotate(0.9);
+            } else {
+                gameCtx.rotate(-0.2);
+            }
+
+            // Racket Shaft
+            gameCtx.strokeStyle = '#94a3b8';
+            gameCtx.lineWidth = 4;
+            gameCtx.beginPath();
+            gameCtx.moveTo(0, 0);
+            gameCtx.lineTo(0, -90);
+            gameCtx.stroke();
+
+            // Racket Head Rim (Oval)
+            gameCtx.strokeStyle = isRedEyes ? '#f59e0b' : '#e11d48';
+            gameCtx.lineWidth = 5;
+            gameCtx.shadowColor = isRedEyes ? '#f59e0b' : '#e11d48';
+            gameCtx.shadowBlur = 12;
+            gameCtx.beginPath();
+            gameCtx.ellipse(0, -125, 26, 36, 0, 0, Math.PI * 2);
+            gameCtx.stroke();
+            gameCtx.shadowBlur = 0;
+
+            // Racket Strings Grid
+            gameCtx.strokeStyle = 'rgba(248, 250, 252, 0.4)';
+            gameCtx.lineWidth = 1;
+            for (let x = -16; x <= 16; x += 8) {
+                gameCtx.beginPath();
+                gameCtx.moveTo(x, -155);
+                gameCtx.lineTo(x, -95);
+                gameCtx.stroke();
+            }
+            for (let y = -150; y <= -100; y += 10) {
+                gameCtx.beginPath();
+                gameCtx.moveTo(-20, y);
+                gameCtx.lineTo(20, y);
+                gameCtx.stroke();
+            }
+
+            // Clawed Hand holding handle
+            gameCtx.fillStyle = '#475569';
+            gameCtx.beginPath();
+            gameCtx.arc(0, 0, 10, 0, Math.PI * 2);
+            gameCtx.fill();
+
+            gameCtx.restore();
+
+            // Damaged Flash Overlay
+            if (state.bossState === 'damaged') {
+                gameCtx.fillStyle = 'rgba(239, 68, 68, 0.35)';
+                gameCtx.beginPath();
+                gameCtx.arc(0, -20, 90, 0, Math.PI * 2);
+                gameCtx.fill();
+            }
+
+            gameCtx.restore();
+        }
+
+        function spawnHitParticles(isPerfect) {
+            const cx = gameCanvas.width / 2;
+            const cy = gameCanvas.height / 2 - 20;
+
+            const count = isPerfect ? 24 : 10;
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 8 + 3;
+                particles.push({
+                    x: cx,
+                    y: cy,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    size: Math.random() * 6 + 3,
+                    color: isPerfect ? '#f59e0b' : '#ef4444',
+                    life: 1.0,
+                    decay: Math.random() * 0.04 + 0.02
+                });
+            }
+        }
+
+        function renderLoop(timestamp) {
+            gameCtx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+            fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+
+            drawWerewolfBoss(timestamp);
+
+            // Render Hit Spark Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= p.decay;
+
+                fxCtx.save();
+                fxCtx.fillStyle = p.color;
+                fxCtx.globalAlpha = Math.max(0, p.life);
+                fxCtx.shadowColor = p.color;
+                fxCtx.shadowBlur = 10;
+                fxCtx.beginPath();
+                fxCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                fxCtx.fill();
+                fxCtx.restore();
+
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+
+            // Render Victory Confetti
+            for (let i = confetti.length - 1; i >= 0; i--) {
+                const c = confetti[i];
+                c.y += c.speedY;
+                c.x += Math.sin(c.tilt);
+                c.tilt += 0.05;
+
+                fxCtx.save();
+                fxCtx.fillStyle = c.color;
+                fxCtx.fillRect(c.x, c.y, c.size, c.size);
+                fxCtx.restore();
+
+                if (c.y > fxCanvas.height) confetti.splice(i, 1);
+            }
+
+            requestAnimationFrame(renderLoop);
+        }
+        requestAnimationFrame(renderLoop);
+
+        function updateUI() {
+            const remaining = Math.max(0, state.targetCalorie - state.consumedCalorie);
+            els.txtBossHp.textContent = `${remaining.toFixed(1)} / ${state.targetCalorie.toFixed(1)} kcal`;
+
+            const progressPct = ((state.targetCalorie - remaining) / state.targetCalorie) * 100;
+            els.barBossHp.style.width = `${progressPct}%`;
+
+            els.txtTotalCalorie.textContent = `${state.consumedCalorie.toFixed(1)} kcal`;
+            els.txtPerfectCount.textContent = `${state.perfectCount} 回`;
+            els.txtMissCount.textContent = `${state.missCount} 回`;
+            els.txtCombo.textContent = `COMBO x${state.combo}`;
+        }
+
+        function showRating(text, cssClass) {
+            els.txtSmashRating.textContent = text;
+            els.txtSmashRating.className = `absolute tracking-wider transition-all pointer-events-none drop-shadow-[0_0_30px_rgba(0,0,0,1)] text-center w-96 font-montserrat ${cssClass}`;
+            els.txtSmashRating.style.opacity = '1';
+            els.txtSmashRating.style.transform = 'translateY(-20px)';
+
+            setTimeout(() => {
+                els.txtSmashRating.style.opacity = '0';
+                els.txtSmashRating.style.transform = 'translateY(0px)';
+            }, 550);
+        }
+
+        async function startWithCamera() {
+            sound.init();
+            state.activeMode = 'camera';
+            els.modeIcon.className = "fa-solid fa-camera text-rose-400";
+            els.txtEngineType.textContent = "カメラ動体検知";
+
+            await initCameraMotionEngine();
+            startGame();
+        }
+
+        function startWithManual() {
+            sound.init();
+            state.activeMode = 'touch';
+            els.modeIcon.className = "fa-solid fa-keyboard text-emerald-400";
+            els.txtEngineType.textContent = "ボタン / SPACE";
+            startGame();
+        }
+
+        function startGame() {
+            els.startModal.classList.add('hidden');
+            state.isPlaying = true;
+            state.startTime = Date.now();
+            updateUI();
+            scheduleAcceleratingCueSequence();
+        }
+
+        function endGameGoalReached() {
+            state.isPlaying = false;
+
+            // PLAY SPECIAL SOUND 2: Victory Fanfare
+            sound.playGoalVictoryFanfare2();
+
+            // Spawn Victory Confetti
+            const colors = ['#f59e0b', '#f43f5e', '#ec4899', '#10b981', '#38bdf8'];
+            for (let i = 0; i < 150; i++) {
+                confetti.push({
+                    x: Math.random() * fxCanvas.width,
+                    y: Math.random() * -fxCanvas.height,
+                    size: Math.random() * 8 + 4,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    speedY: Math.random() * 4 + 2,
+                    tilt: Math.random() * 10
+                });
+            }
+
+            const elapsedSec = Math.floor((Date.now() - state.startTime) / 1000);
+            const mins = Math.floor(elapsedSec / 60).toString().padStart(2, '0');
+            const secs = (elapsedSec % 60).toString().padStart(2, '0');
+
+            document.getElementById('resCalories').textContent = `${state.consumedCalorie.toFixed(1)} kcal`;
+            document.getElementById('resPerfectCount').textContent = `${state.perfectCount} 回`;
+            document.getElementById('resMissCount').textContent = `${state.missCount} 回`;
+            document.getElementById('resTime').textContent = `${mins}:${secs}`;
+
+            els.resultModal.classList.remove('hidden');
+            els.resultModal.classList.add('flex');
+        }
+
+        function restartGame() {
+            state.consumedCalorie = 0.0;
+            state.perfectCount = 0;
+            state.missCount = 0;
+            state.combo = 0;
+            state.isMotionDetectionDisabled = false;
+
+            els.resultModal.classList.add('hidden');
+            els.resultModal.classList.remove('flex');
+
+            updateUI();
+            startGame();
+            if (state.activeMode === 'camera') {
+                requestAnimationFrame(processCameraFrame);
+            }
+        }
+    </script>
+</body>
+</html>
